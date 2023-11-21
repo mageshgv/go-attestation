@@ -15,8 +15,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/go-attestation/attest"
-	"github.com/google/go-attestation/attest/attest-tool/internal"
+	"github.com/mageshgv/go-attestation/attest"
+	"github.com/mageshgv/go-attestation/attest/attest-tool/internal"
 )
 
 var (

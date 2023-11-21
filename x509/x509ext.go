@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/go-attestation/oid"
+	"github.com/mageshgv/go-attestation/oid"
 )
 
 // RFC 4043

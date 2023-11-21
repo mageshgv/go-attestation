@@ -2,7 +2,7 @@
 package internal
 
 import (
-	"github.com/google/go-attestation/attest"
+	"github.com/mageshgv/go-attestation/attest"
 	"github.com/google/go-tpm/legacy/tpm2"
 )
 

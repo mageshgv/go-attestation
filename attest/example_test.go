@@ -6,7 +6,7 @@ import (
 	"log"
 	"testing"
 
-	"github.com/google/go-attestation/attest"
+	"github.com/mageshgv/go-attestation/attest"
 )
 
 var (
