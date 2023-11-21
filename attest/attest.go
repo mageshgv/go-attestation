@@ -115,6 +115,7 @@ type ak interface {
 	close(tpmBase) error
 	marshal() ([]byte, error)
 	activateCredential(tpm tpmBase, in EncryptedCredential, ek *EK) ([]byte, error)
+	activateIAKCredential(tpm tpmBase, in EncryptedCredential, ek *EK) ([]byte, error)
 	quote(t tpmBase, nonce []byte, alg HashAlg, selectedPCRs []int) (*Quote, error)
 	attestationParameters() AttestationParameters
 	certify(tb tpmBase, handle interface{}) (*CertificationParameters, error)
@@ -145,6 +146,10 @@ func (k *AK) Marshal() ([]byte, error) {
 // This operation is synonymous with TPM2_ActivateCredential.
 func (k *AK) ActivateCredential(tpm *TPM, in EncryptedCredential) (secret []byte, err error) {
 	return k.ak.activateCredential(tpm.tpm, in, nil)
+}
+
+func (k *AK) ActivateIAKCredential(tpm *TPM, in EncryptedCredential) (secret []byte, err error) {
+	return k.ak.activateIAKCredential(tpm.tpm, in, nil)
 }
 
 // ActivateCredential decrypts the secret using the key to prove that the AK

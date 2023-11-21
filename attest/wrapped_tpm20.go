@@ -32,10 +32,28 @@ import (
 
 // wrappedTPM20 interfaces with a TPM 2.0 command channel.
 type wrappedTPM20 struct {
-	interf           TPMInterface
-	rwc              CommandChannelTPM20
-	tpmRSAEkTemplate *tpm2.Public
-	tpmECCEkTemplate *tpm2.Public
+	interf               TPMInterface
+	rwc                  CommandChannelTPM20
+	tpmRSAEkTemplate     *tpm2.Public
+	tpmECCEkTemplate     *tpm2.Public
+	tpmRSAIdevIDTemplate *tpm2.Public
+}
+
+func (t *wrappedTPM20) rsaIdevIDTemplate() tpm2.Public {
+	if t.tpmRSAIdevIDTemplate != nil {
+		return *t.tpmRSAIdevIDTemplate
+	}
+
+	nonce, err := tpm2.NVReadEx(t.rwc, nvramIdevIDNonceIndex, tpm2.HandleOwner, "", 0)
+	if err != nil {
+		t.tpmRSAIdevIDTemplate = &defaultRSAIdevIDTemplate // No nonce, use the default template
+	} else {
+		template := defaultRSAIdevIDTemplate
+		copy(template.RSAParameters.ModulusRaw, nonce)
+		t.tpmRSAIdevIDTemplate = &template
+	}
+
+	return *t.tpmRSAIdevIDTemplate
 }
 
 func (t *wrappedTPM20) rsaEkTemplate() tpm2.Public {
@@ -178,6 +196,24 @@ func (t *wrappedTPM20) getStorageRootKeyHandle(parent ParentKeyConfig) (tpmutil.
 	}
 
 	return srkHandle, true, nil
+}
+
+func (t *wrappedTPM20) idevIdCertificates() ([]EK, error) {
+	var res []EK
+	if rsaCert, err := readEKCertFromNVRAM20(t.rwc, nvramIdevIDCertIndex); err == nil {
+		res = append(res, EK{Public: crypto.PublicKey(rsaCert.PublicKey), Certificate: rsaCert, handle: commonRSAIdevIDEquivalentHandle})
+	}
+	return res, nil
+}
+
+func (t *wrappedTPM20) idevIds() ([]EK, error) {
+	if cert, err := readEKCertFromNVRAM20(t.rwc, nvramIdevIDCertIndex); err == nil {
+		return []EK{
+			{Public: crypto.PublicKey(cert.PublicKey), Certificate: cert, handle: commonRSAIdevIDEquivalentHandle},
+		}, nil
+	} else {
+		return nil, fmt.Errorf("failed to read idevid cert from nvram: %w", err)
+	}
 }
 
 func (t *wrappedTPM20) ekCertificates() ([]EK, error) {
@@ -510,6 +546,48 @@ func (k *wrappedKey20) close(t tpmBase) error {
 		return fmt.Errorf("expected *wrappedTPM20, got %T", t)
 	}
 	return tpm2.FlushContext(tpm.rwc, k.hnd)
+}
+
+func (k *wrappedKey20) activateIAKCredential(tb tpmBase, in EncryptedCredential, ek *EK) ([]byte, error) {
+	t, ok := tb.(*wrappedTPM20)
+	if !ok {
+		return nil, fmt.Errorf("expected *wrappedTPM20, got %T", tb)
+	}
+
+	if len(in.Credential) < 2 {
+		return nil, fmt.Errorf("malformed credential blob")
+	}
+	credential := in.Credential[2:]
+	if len(in.Secret) < 2 {
+		return nil, fmt.Errorf("malformed encrypted secret")
+	}
+	secret := in.Secret[2:]
+
+	var ekHnd tpmutil.Handle
+	ekHnd = commonRSAIdevIDEquivalentHandle
+
+	sessHandle, _, err := tpm2.StartAuthSession(
+		t.rwc,
+		tpm2.HandleNull,  /*tpmKey*/
+		tpm2.HandleNull,  /*bindKey*/
+		make([]byte, 16), /*nonceCaller*/
+		nil,              /*secret*/
+		tpm2.SessionPolicy,
+		tpm2.AlgNull,
+		tpm2.AlgSHA256)
+	if err != nil {
+		return nil, fmt.Errorf("creating session: %v", err)
+	}
+	defer tpm2.FlushContext(t.rwc, sessHandle)
+
+	if _, _, err := tpm2.PolicySecret(t.rwc, tpm2.HandleEndorsement, tpm2.AuthCommand{Session: tpm2.HandlePasswordSession, Attributes: tpm2.AttrContinueSession}, sessHandle, nil, nil, nil, 0); err != nil {
+		return nil, fmt.Errorf("tpm2.PolicySecret() failed: %v", err)
+	}
+
+	return tpm2.ActivateCredentialUsingAuth(t.rwc, []tpm2.AuthCommand{
+		{Session: tpm2.HandlePasswordSession, Attributes: tpm2.AttrContinueSession},
+		{Session: sessHandle, Attributes: tpm2.AttrContinueSession},
+	}, k.hnd, ekHnd, credential, secret)
 }
 
 func (k *wrappedKey20) activateCredential(tb tpmBase, in EncryptedCredential, ek *EK) ([]byte, error) {

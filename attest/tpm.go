@@ -42,9 +42,14 @@ const (
 	nvramECCCertIndex    = 0x1c0000a
 	nvramECCEkNonceIndex = 0x1c0000b
 
+	nvramIdevIDCertIndex  = 0x1C90000
+	nvramIdevIDNonceIndex = 0x1C90001 // Is this right ?
+
 	// Defined in "Registry of reserved TPM 2.0 handles and localities", and checked on a glinux machine.
 	commonRSAEkEquivalentHandle = 0x81010001
 	commonECCEkEquivalentHandle = 0x81010002
+
+	commonRSAIdevIDEquivalentHandle = 0x81020000
 )
 
 var (
@@ -91,6 +96,25 @@ var (
 			},
 		},
 	}
+
+	defaultRSAIdevIDTemplate = tpm2.Public{
+		Type:    tpm2.AlgRSA,
+		NameAlg: tpm2.AlgSHA256,
+		Attributes: tpm2.FlagSign |
+			tpm2.FlagFixedTPM |
+			tpm2.FlagFixedParent |
+			tpm2.FlagSensitiveDataOrigin |
+			tpm2.FlagUserWithAuth,
+		RSAParameters: &tpm2.RSAParams{
+			Sign: &tpm2.SigScheme{
+				Alg:  tpm2.AlgRSASSA,
+				Hash: tpm2.AlgSHA256,
+			},
+			KeyBits:    2048,
+			ModulusRaw: make([]byte, 256),
+		},
+	}
+
 	// Default RSA and ECC EK templates defined in:
 	// https://trustedcomputinggroup.org/wp-content/uploads/Credential_Profile_EK_V2.0_R14_published.pdf
 	defaultRSAEKTemplate = tpm2.Public{
@@ -340,6 +364,8 @@ type tpmBase interface {
 	tpmVersion() TPMVersion
 	eks() ([]EK, error)
 	ekCertificates() ([]EK, error)
+	idevIds() ([]EK, error)
+	idevIdCertificates() ([]EK, error)
 	info() (*TPMInfo, error)
 
 	loadAK(opaqueBlob []byte) (*AK, error)
@@ -369,10 +395,18 @@ func (t *TPM) EKs() ([]EK, error) {
 	return t.tpm.eks()
 }
 
+func (t *TPM) IdevIds() ([]EK, error) {
+	return t.tpm.idevIds()
+}
+
 // EKCertificates returns the endorsement key certificates burned-in to the platform.
 // It is guaranteed that each EK.Certificate field will be populated.
 func (t *TPM) EKCertificates() ([]EK, error) {
 	return t.tpm.ekCertificates()
+}
+
+func (t *TPM) IdevIdCertificates() ([]EK, error) {
+	return t.tpm.idevIdCertificates()
 }
 
 // Info returns information about the TPM.

@@ -152,6 +152,14 @@ func (t *windowsTPM) info() (*TPMInfo, error) {
 	return &tInfo, nil
 }
 
+func (t *windowsTPM) idevIdCertificates() ([]EK, error) {
+	return nil, fmt.Errorf("not implemented for windows tpm")
+}
+
+func (t *windowsTPM) idevIds() ([]EK, error) {
+	return t.idevIdCertificates()
+}
+
 func (t *windowsTPM) ekCertificates() ([]EK, error) {
 	ekCerts, err := t.pcp.EKCerts()
 	if err != nil {

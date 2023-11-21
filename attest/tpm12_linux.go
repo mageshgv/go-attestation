@@ -108,6 +108,14 @@ func (t *trousersTPM) eks() ([]EK, error) {
 	return t.ekCertificates()
 }
 
+func (t *trousersTPM) idevIdCertificates() ([]EK, error) {
+	return nil, fmt.Errorf("not implemented for tpm1.2")
+}
+
+func (t *trousersTPM) idevIds() ([]EK, error) {
+	return t.idevIdCertificates()
+}
+
 func (t *trousersTPM) newKey(*AK, *KeyConfig) (*Key, error) {
 	return nil, fmt.Errorf("not implemented")
 }
